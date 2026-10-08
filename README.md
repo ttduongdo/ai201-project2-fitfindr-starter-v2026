@@ -104,12 +104,13 @@
 - If no price or size is found, it means no filter. For example, "a vintage graphic tee under $30, size M" gives description `"a vintage graphic tee"`, `max_price` 30.0 and `size` `"M"`.
 
 **What moves through the session:** <!-- which fields, in what order -->
-1. `session["query"]`: the raw user text.
-2. `session["results"]`: the full list from `search_listings`.
-3. `session["item"]`: `results[0]`, set only when results are non-empty. This is what `suggest_outfit` and `create_fit_card` read, so the user never retypes it.
-4. `session["outfits"]`: the list from `suggest_outfit`, which can be `[]`.
-5. `session["fit_card"]`: the caption string from `create_fit_card`.
-6. `session["message"]`: set only on the not-found stop.
+1. `session["query"]`: the raw user text
+2. `session["parsed"]`: `description`, `size`, `max_price`
+3. `session["search_results"]`: the full list from `search_listings`
+4. `session["selected_item"]`: `search_results[0]`, set only when results are non-empty
+5. `session["outfit_suggestion"]`: the list from `suggest_outfit`, can be `[]`
+6. `session["fit_card"]`: the caption string from `create_fit_card`
+7. `session["error"]`: set only when the run ends early, and `fit_card` stays `None`
 
 ---
 
