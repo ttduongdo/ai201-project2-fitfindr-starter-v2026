@@ -59,24 +59,24 @@
 
 ### `search_listings`
 
-- **What it does:**
-- **Inputs:** <!-- name and type each: `max_price` (float), not "a price" -->
-- **Returns:**
-- **When it has nothing:**
+- **What it does:** Search the listings file for items matching the description, optionally filtered by size and/or price cap 
+- **Inputs:** <!-- name and type each: `max_price` (float), not "a price" --> description (str), size (str|None), max_price (float|None)
+- **Returns:** a list of listing dicts, each with fields {`id`, `title`, `description`, `category`, `style_tags`, `size`, `condition`, `price`, `colors`, `brand`, `platform`}. Sorted by best match
+- **When it has nothing:** []
 
 ### `suggest_outfit`
 
-- **What it does:**
-- **Inputs:**
-- **Returns:**
-- **When it has nothing:**
+- **What it does:** Pairs an item with wardrobe items from complementary categories that share at least one style tags, ranked by number of shared tags and color match
+- **Inputs:** new_item (dict), wardrobe (list[dict])
+- **Returns:** a list of at most 3 outfit dicts, each with `wardrobe_item` (dict), `shared_tags` (list[str]), `reason` (str). Sorted by matching score
+- **When it has nothing:** []
 
 ### `create_fit_card`
 
-- **What it does:**
-- **Inputs:**
-- **Returns:**
-- **When it has nothing:**
+- **What it does:** Writes a caption based on the listing details of `new_item` and the vibe of the `outfit` it was paired into
+- **Inputs:** `outfit` (dict|None), `new_item` (dict)
+- **Returns:** a caption of 1-3 sentences with hashtags from 'shared_tags` or `new_item[style_tags]`, 
+- **When it has nothing:** if `outfit` is None then it returns a caption built from `new_item` alone; if both are missing then it returns `""`
 
 ---
 
@@ -93,13 +93,23 @@
      The grader checks your code against what you claim here, so the file and
      function have to be real. -->
 
-**Branch rule:**
+**Branch rule:** If `search_listings` returns [], set `session["message"]` to a not-found message naming the query and stop. Otherwise set `session["item"] = results[0]`, call `suggest_outfit(session["item"], wardrobe)`, and store the result in `session["outfits"]`. Then call `create_fit_card` with `session["outfits"][0]`, or with `None` if `session["outfits"]` is `[]`, and store the caption in `session["fit_card"]`.
 
 **Where it lives:** `agent.py::run_agent`
 
-**How the query is parsed:** <!-- regex, string splitting, or asking the model — say which -->
+**How the query is parsed:** <!-- regex, string splitting, or asking the model — say which --> Regex:
+- `max_price` is the number after `$` or after "under" or "below" (float),
+- `size` is the token after the word "size" (str),
+- `description` is whatever text is left after removing those two phrases and stray punctuation. 
+- If no price or size is found, it means no filter. For example, "a vintage graphic tee under $30, size M" gives description `"a vintage graphic tee"`, `max_price` 30.0 and `size` `"M"`.
 
 **What moves through the session:** <!-- which fields, in what order -->
+1. `session["query"]`: the raw user text.
+2. `session["results"]`: the full list from `search_listings`.
+3. `session["item"]`: `results[0]`, set only when results are non-empty. This is what `suggest_outfit` and `create_fit_card` read, so the user never retypes it.
+4. `session["outfits"]`: the list from `suggest_outfit`, which can be `[]`.
+5. `session["fit_card"]`: the caption string from `create_fit_card`.
+6. `session["message"]`: set only on the not-found stop.
 
 ---
 
