@@ -24,7 +24,7 @@ data earns credit; *"80% seemed reasonable"* does not.
 Given a query that matches at least one listing, the agent completes all three
 tool calls and returns a fit card — in at least 4 of 5 tries.
 
-**Why this target:**
+**Why this target:** Targeting 4 out of 5 because a miss might come from failure to call the model in either `suggest_outfit` or `create_fit_card`, and/or an empty response in one of those two. Not targeting for less because that would mean the loop is dropping something else other than pure unluckiness.
 <!-- Why 4 of 5 and not 5 of 5? Something about your search, probably —
      "my search is a plain keyword match and some phrasings will miss" is a
      real answer. -->
@@ -36,13 +36,15 @@ tool calls and returns a fit card — in at least 4 of 5 tries.
 Given a query that matches no listings, the agent stops before calling
 `suggest_outfit` and returns a message naming what to change — 5 of 5 tries.
 
-**Why this target:**
+**Why this target:** The stop is merely a condition check (`if not results`) so one miss would mean the branch is broken.
 <!-- Why is 5 of 5 reasonable here when criterion 1 isn't? What's different
      about this path? -->
 
 ---
 
-## 3. Something about state
+## 3. The item stays the same throughout the loop
+
+In 5 of 5 runs of matching a query, `session["selected_item"]["id"]` equals `search_results[0]["id"]`. That same id should also be the `new_item` that `suggest_outfit` and `create_fit_card` receive.
 
 <!-- YOU WRITE THIS ONE.
 
@@ -56,13 +58,15 @@ Given a query that matches no listings, the agent stops before calling
 
 
 
-**Why this target:**
+**Why this target:** Targeting 5/5 because passing the item along is pure code and no model involved. To check for this error I can compare ids of the inputs each tool received.
 
 
 
 ---
 
-## 4. Something about the fit card
+## 4. The fit card is postable
+
+For the same matching input, at least 4 of 5 captions generated are at most 280 characters, contain the listing's price, and end with 2-4 hashtags.
 
 <!-- YOU WRITE THIS ONE.
 
@@ -77,14 +81,15 @@ Given a query that matches no listings, the agent stops before calling
 
 
 
-**Why this target:**
+**Why this target:** Targeting 4/5 because the model can occasionally drop the price/hashtags or run too long. Scoring below that threshold means the prompt needs fixing.
 
 
 
 ---
 
-## 5. Your choice
+## 5. The price ceiling is respected
 
+For 5 query matchings that include a price cap, every listing returned by `search_listings` costs at most that cap.
 <!-- YOU WRITE THIS ONE TOO.
 
      Pick something you actually care about getting right. Speed, the empty
@@ -94,7 +99,7 @@ Given a query that matches no listings, the agent stops before calling
 
 
 
-**Why this target:**
+**Why this target:** Targeting 5/5 because this is purely a mathematical comparison, no model involved. A miss means the filter is faulty.
 
 
 
