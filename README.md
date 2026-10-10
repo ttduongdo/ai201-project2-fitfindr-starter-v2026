@@ -131,16 +131,26 @@ $ python app.py ask '...'
 
 ```
 $ python -c "from tools import search_listings; print(search_listings('graphic tee', max_price=30))"
+(.venv) dothuyduong@Dos-MacBook-Pro-1546 ai201-project2-fitfindr-starter-v2026 % python -c "from tools import search_listings as s; print([r['id'] for r in s('graphic tee', max_price=30)])"
+['lst_002', 'lst_006', 'lst_017', 'lst_033', 'lst_011', 'lst_015']
 
 ```
 
 ```
 $ python -c "from tools import suggest_outfit; ..."
+(.venv) dothuyduong@Dos-MacBook-Pro-1546 ai201-project2-fitfindr-starter-v2026 % python -c "from tools import suggest_outfit; from utils.data_loader import get_example_wardrobe, load_listings; print(suggest_outfit(load_listings()[0], get_example_wardrobe()))"
+Outfit 1: Pair the new Vintage Levi's 501 Jeans with the white ribbed tank top and the black cropped zip hoodie layered on top, accessorized with the black crossbody bag and chunky white sneakers. This combination leans heavily into the streetwear and vintage tags shared by the jeans, creating an effortlessly cool silhouette by contrasting the fitted tank with the cropped hoodie. It is an ideal look for a casual weekend brunch, running errands, or meeting friends for coffee.
+
+Outfit 2: Combine the new Vintage Levi's 501 Jeans with the oversized grey crewneck sweatshirt and the black combat boots, finished with the brown leather belt. The classic denim and the cozy, oversized grey crewneck share a timeless, streetwear-inspired aesthetic that looks effortlessly put-together while remaining incredibly comfortable. This outfit is perfect for casual Fridays at a creative workplace, a trip to the local record store, or an autumn afternoon walk.
 
 ```
 
 ```
 $ python -c "from tools import create_fit_card; ..."
+(.venv) dothuyduong@Dos-MacBook-Pro-1546 ai201-project2-fitfindr-starter-v2026 % python -c "from tools import create_fit_card; from utils.data_loader import load_listings; print(create_fit_card('jeans and white sneakers', load_listings()[0]))"
+Absolute thrift store miracle finding these vintage Levi's 501 jeans in the absolute best medium wash. Just tossed them up on depop for $38 because they deserve a better home than my crowded closet. They look insane paired with a crisp pair of fresh white sneakers for that effortless off-duty streetwear look. 
+
+#vintage #classic #denim #streetwear
 
 ```
 

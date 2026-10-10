@@ -23,7 +23,11 @@ the description has to say what is *in* the list.
 import config  # noqa: F401 — you'll use this in search_listings
 from generate import generate
 from utils.data_loader import load_listings
+import re
 
+STOPWORDS = {"a", "an", "the", "and", "or", "for", "in", "of", "to", "with", "some", "looking", "want", "need"}
+def _words(text: str) -> set[str]:
+    return set(re.findall(r"[a-z0-9]+", text.lower()))
 
 # ── Tool 1: search_listings ───────────────────────────────────────────────────
 
@@ -79,8 +83,38 @@ def search_listings(
         python -c "from tools import search_listings; print(search_listings('graphic tee', max_price=30))"
     """
     # TODO: replace this with your implementation
-    return []
+    query = _words(description) - STOPWORDS
+    size = _words(size) if size else None
 
+    scored = []
+    for listing in load_listings():
+        if max_price is not None and listing["price"] > max_price:
+            continue
+        if size and not size <= _words(listing["size"]):
+            continue
+
+        keywords = _words(" ".join([
+            listing["title"],
+            listing["description"],
+            listing["category"],
+            " ".join(listing["style_tags"]),
+            listing["brand"] if listing["brand"] else "" 
+        ]))
+        score = len(query & keywords)
+        if score > 0:
+            scored.append((score, listing))
+
+    scored.sort(reverse=True, key=lambda x: x[0])
+    return [listing for score, listing in scored[:config.SEARCH_RESULT_LIMIT]]
+
+
+def _format_wardrobe(items: list[dict]) -> str:
+    lines = []
+    for item in items:
+        colors = ", ".join(item.get("colors", []))
+        tags = ", ".join(item.get("style_tags", []))
+        lines.append(f"-  {item['name']} ({item.get('category')}; {colors}; tags: {tags})")
+    return "\n".join(lines)
 
 # ── Tool 2: suggest_outfit ────────────────────────────────────────────────────
 
@@ -113,7 +147,39 @@ def suggest_outfit(new_item: dict, wardrobe: dict) -> str:
         python -c "from tools import suggest_outfit; from utils.data_loader import get_example_wardrobe, load_listings; print(suggest_outfit(load_listings()[0], get_example_wardrobe()))"
     """
     # TODO: replace this with your implementation
-    return ""
+    tags = [t for t in new_item.get("style_tags", [])]
+    item_desc = f"{new_item['title']} ({new_item.get('category')}; {', '.join(new_item['colors'])}; tags: {', '.join(tags)})"
+
+    items = wardrobe.get("items", [])
+    if not items:
+        prompt = f"""
+        You are a professional fashion stylist. For this item: {item_desc}, give some general styling ideas including the following:
+        - How to style it with other wardrobe staples.
+        - Suitable occasions or settings.
+        - Color coordination and layering tips.
+        Output: plain text only, no markdown. Start directly with the first outfit. Label each one "Idea 1: " / "Idea 2:". Give each 2-3 sentences covering the pieces, why they work, and an occasion.
+        """
+    else:
+        wardrobe_str = _format_wardrobe(items)
+        prompt = f"""
+        You are a professional fashion stylist. 
+        For this new item: {item_desc}
+        and the user's wardrobe:
+        {wardrobe_str}
+
+        Suggest 1-2 outfit combinations strictly using these wardrobe items based on the following rules:
+        - Pair complementary categories, such as a top with a bottom or a layer over a top.
+        - Prefer pieces that share style tags and/or colors with the new item.
+        - Consider color coordination and layering.
+        - Mention suitable occasions or settings for each outfit.
+        - Do not invent pieces the user doesn't own.
+        Output: plain text only, no markdown. Start directly with the first outfit. Label each one "Outfit 1: " / "Outfit 2:". Give each 2-3 sentences covering the pieces, why they work, and an occasion.
+        """
+
+    reply = generate(prompt)
+    if not reply or not reply.strip():
+        return "Couldn't generate outfit ideas for this item. Try again."
+    return reply.strip()
 
 
 # ── Tool 3: create_fit_card ───────────────────────────────────────────────────
@@ -152,5 +218,36 @@ def create_fit_card(outfit: str, new_item: dict) -> str:
     Test it from a terminal before you move on:
         python -c "from tools import create_fit_card; from utils.data_loader import load_listings; print(create_fit_card('jeans and white sneakers', load_listings()[0]))"
     """
-    # TODO: replace this with your implementation
-    return ""
+    if not outfit or not outfit.strip():
+        return "Couldn't create a fit card because the outfit is empty."
+
+    price = f"${new_item['price']:.2f}"
+    brand = new_item.get('brand')
+    brand_line = f"Brand: {brand}" if brand else ""
+    tags = ", ".join(new_item.get("style_tags", []))
+
+    prompt = f"""
+    You just bought some new clothing and you're posting about your haul.
+
+    Item: {new_item['title']}
+    Bought for: {price}
+    Bought on: {new_item['platform']}
+    {brand_line}
+    Style tags: {tags}
+
+    Outfit idea:
+    {outfit}
+
+    Write a two-to-four sentence caption you'd actually post about this find.
+    - Mention the item, its price, and the platform once each.
+    - Sound like a real person's post, not a product description.
+    - Be specific about the vibe, using details from the outfit idea.
+    - If the outfit idea has more than one outfit, base the caption on the first one.
+    - End with 2-4 hashtags based on the style tags.
+    - Plain text only. No intro like "Here's a caption", and no quotation marks around it.
+    """
+
+    reply = generate(prompt)
+    if not reply or not reply.strip():
+        return "Couldn't generate a fit card for this outfit. Try again."
+    return reply.strip()

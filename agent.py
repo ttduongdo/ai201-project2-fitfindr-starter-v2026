@@ -17,7 +17,7 @@ import config
 import trace
 from tools import search_listings, suggest_outfit, create_fit_card
 from generate import ModelUnavailable
-
+import re
 
 # ── session state ─────────────────────────────────────────────────────────────
 
@@ -48,6 +48,42 @@ def new_session(query: str, wardrobe: dict) -> dict:
 
 
 # ── planning loop ─────────────────────────────────────────────────────────────
+def parse_query(query: str) -> dict:
+    """
+    'vintage graphic tee under $30, size M' -> description / size / max_price
+    """
+    text = query
+    max_price = None
+    size = None
+
+    m = re.search(r"(?:under|below|less than|max|up to)\s*\$?\s*(\d+(?:\.\d+)?)", text, re.I) \
+        or re.search(r"\$\s*(\d+(?:\.\d+)?)", text)
+    if m:
+        max_price = float(m.group(1))
+        text = text.replace(m.group(0), " ")
+
+    m = re.search(r"\bsize\s+([A-Za-z0-9/]+)", text, re.I)
+    if m:
+        size = m.group(1).upper()
+        text = text.replace(m.group(0), " ")
+
+    description = re.sub(r"[,\s]+", " ", text).strip()
+    return {"description": description, "size": size, "max_price": max_price}
+
+def _no_results_message(parsed: dict) -> str:
+    desc = parsed["description"]
+    searched = f'"{desc}"'
+    suggestions = []
+
+    if parsed["size"]:
+        searched += f' in size {parsed["size"]}'
+        suggestions.append("removing the size filter")
+    if parsed["max_price"] is not None:
+        searched += f' under ${parsed["max_price"]}'
+        suggestions.append("raising your budget")
+    suggestions.append("using different keywords")
+
+    return f'Nothing matched {searched}. Try ' + " or ".join(suggestions) + "."
 
 def run_agent(query: str, wardrobe: dict) -> dict:
     """
@@ -106,9 +142,30 @@ def run_agent(query: str, wardrobe: dict) -> dict:
         than a stack trace. The import is already at the top of this file.
     """
     session = new_session(query, wardrobe)
+    count = 0
 
-    # TODO: delete these two lines and build the loop.
-    session["error"] = "The planning loop isn't built yet — see the TODO in agent.py."
+    count += 1
+    trace.check_iterations(count)
+    session["parsed"] = parse_query(query)
+    p = session["parsed"]
+
+    count += 1
+    trace.check_iterations(count)
+    session["search_results"] = search_listings(p["description"], p["size"], p["max_price"])
+
+    if not session["search_results"]:
+        session["error"] = _no_results_message(session["parsed"])
+        return session
+
+    session["selected_item"] = session["search_results"][0]
+
+    count += 1
+    trace.check_iterations(count)
+    session["outfit_suggestion"] = suggest_outfit(session["selected_item"], wardrobe)
+
+    count += 1
+    trace.check_iterations(count)
+    session["fit_card"] = create_fit_card(session["outfit_suggestion"], session["selected_item"])
     return session
 
 
