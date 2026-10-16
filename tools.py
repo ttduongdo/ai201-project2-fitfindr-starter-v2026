@@ -24,7 +24,7 @@ import config  # noqa: F401 — you'll use this in search_listings
 from generate import generate
 from utils.data_loader import load_listings
 import re
-
+from statistics import median
 STOPWORDS = {"a", "an", "the", "and", "or", "for", "in", "of", "to", "with", "some", "looking", "want", "need"}
 def _words(text: str) -> set[str]:
     return set(re.findall(r"[a-z0-9]+", text.lower()))
@@ -108,6 +108,48 @@ def search_listings(
     return [listing for score, listing in scored[:config.SEARCH_RESULT_LIMIT]]
 
 
+# ── Stretch tool: compare_prices ────────────────────────────────────────────────────
+def compare_prices(item: dict, listings: list[dict]) -> dict:
+    """
+    Compares the selected item's price to the median price of other listings in the same category. 
+    Returns a dict: {"median": float, "diff": float, "verdict": str, "n": int}.
+    The verdict is "below typical" at 80% of the median or less, "above typical" at 120% or more, otherwise "typical", or "not enough data" when there are no comparables. 
+    Args:
+        item: a listing dict.
+        listings: a list of item dicts.
+
+    Returns:
+        A dict with the following keys:
+            - "median": the median price of the listings.
+            - "diff": the difference between the item's price and the median price.
+            - "verdict": a string indicating whether the item's price is "below typical", "above typical", "typical", or "not enough data".
+            - "n": the number of listings used to calculate the median.
+    """
+    others = [l for l in listings if l["id"] != item["id"]]
+    same_category = [l for l in others if l["category"] == item["category"]]
+    pool = same_category if len(same_category) >= 3 else others
+
+    if not pool:
+        return {"median": None, "diff": None, "verdict": "not enough data", "n": 0}
+
+    median_price = median(l["price"] for l in pool)
+    price = item["price"]
+    if price <= 0.8 * median_price:
+        verdict = "below typical"
+    elif price >= 1.2 * median_price:
+        verdict = "above typical"
+    else:
+        verdict = "typical"
+
+    return {
+        "median": median_price,
+        "diff": price - median_price,
+        "verdict": verdict,
+        "n": len(pool),
+    }
+
+# ── Tool 2: suggest_outfit ────────────────────────────────────────────────────
+
 def _format_wardrobe(items: list[dict]) -> str:
     lines = []
     for item in items:
@@ -115,8 +157,6 @@ def _format_wardrobe(items: list[dict]) -> str:
         tags = ", ".join(item.get("style_tags", []))
         lines.append(f"-  {item['name']} ({item.get('category')}; {colors}; tags: {tags})")
     return "\n".join(lines)
-
-# ── Tool 2: suggest_outfit ────────────────────────────────────────────────────
 
 def suggest_outfit(new_item: dict, wardrobe: dict) -> str:
     """
@@ -184,7 +224,7 @@ def suggest_outfit(new_item: dict, wardrobe: dict) -> str:
 
 # ── Tool 3: create_fit_card ───────────────────────────────────────────────────
 
-def create_fit_card(outfit: str, new_item: dict) -> str:
+def create_fit_card(outfit: str, new_item: dict, price_note: str = None) -> str:
     """
     Write a short caption someone would actually post about the find.
 
@@ -193,6 +233,7 @@ def create_fit_card(outfit: str, new_item: dict) -> str:
     Args:
         outfit:   the outfit suggestion string from suggest_outfit().
         new_item: the listing dict for the item.
+        price_note: (optional) a note about the price, e.g., "below typical".
 
     Returns:
         A two-to-four sentence caption.
@@ -224,6 +265,7 @@ def create_fit_card(outfit: str, new_item: dict) -> str:
     price = f"${new_item['price']:.2f}"
     brand = new_item.get('brand')
     brand_line = f"Brand: {brand}" if brand else ""
+    price_line = f"Price context: {price_note}" if price_note else ""
     tags = ", ".join(new_item.get("style_tags", []))
 
     prompt = f"""
@@ -233,6 +275,7 @@ def create_fit_card(outfit: str, new_item: dict) -> str:
     Bought for: {price}
     Bought on: {new_item['platform']}
     {brand_line}
+    {price_line}
     Style tags: {tags}
 
     Outfit idea:
@@ -243,6 +286,7 @@ def create_fit_card(outfit: str, new_item: dict) -> str:
     - Sound like a real person's post, not a product description.
     - Be specific about the vibe, using details from the outfit idea.
     - If the outfit idea has more than one outfit, base the caption on the first one.
+    - If price context is given, fold it into your one mention of the price and keep it accurate: call it a deal or a steal only if it says below typical, say it was worth the splurge if it says above typical, and keep it casual if it says about typical. Do not add any other price claims.
     - End with 2-4 hashtags based on the style tags.
     - Plain text only. No intro like "Here's a caption", and no quotation marks around it.
     """

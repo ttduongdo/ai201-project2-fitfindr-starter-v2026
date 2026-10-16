@@ -15,7 +15,8 @@ Build and test your three tools in `tools.py` first. Then come here.
 
 import config
 import trace
-from tools import search_listings, suggest_outfit, create_fit_card
+from tools import search_listings, suggest_outfit, create_fit_card, compare_prices
+from utils.data_loader import load_listings
 from generate import ModelUnavailable
 import re
 
@@ -39,6 +40,7 @@ def new_session(query: str, wardrobe: dict) -> dict:
         "query": query,              # what the user typed
         "parsed": {},                # description / size / max_price you pulled out of it
         "search_results": [],        # everything search_listings returned
+        "price_check": None,          # what compare_prices returned
         "selected_item": None,       # the one you chose — goes into suggest_outfit
         "wardrobe": wardrobe,        # the user's wardrobe
         "outfit_suggestion": None,   # what suggest_outfit returned
@@ -161,11 +163,26 @@ def run_agent(query: str, wardrobe: dict) -> dict:
 
     count += 1
     trace.check_iterations(count)
-    session["outfit_suggestion"] = suggest_outfit(session["selected_item"], wardrobe)
+    session["price_check"] = compare_prices(session["selected_item"], load_listings())
 
     count += 1
     trace.check_iterations(count)
-    session["fit_card"] = create_fit_card(session["outfit_suggestion"], session["selected_item"])
+    session["outfit_suggestion"] = suggest_outfit(session["selected_item"], wardrobe)
+ 
+    check = session["price_check"]
+    price_note = None
+    if check["verdict"] == "below typical":
+        price_note = f"${abs(check['diff']):.0f} below the typical ${check['median']:.0f} for similar listings"
+    elif check["verdict"] == "above typical":
+        price_note = f"${abs(check['diff']):.0f} above the typical ${check['median']:.0f} for similar listings"
+    elif check["verdict"] == "typical":
+        price_note = f"about the typical ${check['median']:.0f} for similar listings"
+    else:
+        price_note = None
+
+    count += 1
+    trace.check_iterations(count)
+    session["fit_card"] = create_fit_card(session["outfit_suggestion"], session["selected_item"], price_note)
     return session
 
 

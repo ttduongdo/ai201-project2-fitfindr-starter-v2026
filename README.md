@@ -81,7 +81,7 @@ The user describes a thrift find in plain language, like "vintage graphic tee si
 
 ### Stretch Feature: `compare_price`
 
-- **What it does:** Compares the selected item's price to the median price of other listings in the same category (all other listings if the category has fewer than 3 others), and labels it as below, near, or above typical
+- **What it does:** Compares the selected item's price to the median price of other listings in the same category, and labels it as below/near/above typical
 - **Inputs:** `item` (dict), `listings` (list of dicts)
 - **Returns:** a dict `{"median": float, "diff": float, "verdict": str, "n": int}`. `median` is the median price of the comparison pool, `diff` is the item's price minus the median, `n` is the pool size, and `verdict` is "below typical" if the price is at most 80% of the median, "above typical" if at least 120%, otherwise "typical". The item itself is excluded from the pool
 - **When it has nothing:** if there are no other listings, `{"median": None, "diff": None, "verdict": "not enough data", "n": 0}`
@@ -102,23 +102,31 @@ The user describes a thrift find in plain language, like "vintage graphic tee si
      function have to be real. -->
 
 **Branch rule:** 
-- If `search_listings` returns `[]`: set `session["error"]` to a message that names the query and says what to change (raise the price cap, drop the size, or use fewer descriptive words), then return the session. `suggest_outfit` and `create_fit_card` are never called and `session["fit_card"]` stays `None`. 
-- Otherwise set `session["selected_item"] = session["search_results"][0]`, call `suggest_outfit` with it and the wardrobe, store the string in `session["outfit_suggestion"]`, pass that same string and the selected item to `create_fit_card`, and store the caption in `session["fit_card"]`.
+- If `search_listings` returns `[]`: 
+     - Set `session["error"]` to a message that says what to change (raise the price cap/drop the size/use fewer descriptive words) and return the session. 
+     - `compare_prices`, `suggest_outfit` and `create_fit_card` are never called/
+     -  `session["price_check"] = None`, `session["fit_card"] = None`.
+- Otherwise:
+     - Set `session["selected_item"] = session["search_results"][0]`. 
+     - Call `compare_prices` with it and store the result in `session["price_check"]`. Then call `suggest_outfit` with the item and the wardrobe and store the string in `session["outfit_suggestion"]`. Finally call `create_fit_card` with that string, the same item, and a price note (built from `session["price_check"]`, and store the caption in `session["fit_card"]`. The price check never ends a run or changes which tools run; it only changes what the caption can say.
+
 **Where it lives:** `agent.py::run_agent`
 
 **How the query is parsed:** <!-- regex, string splitting, or asking the model — say which --> Regex:
 - `max_price` is the number after `$` OR after "under" or "below" (float),
 - `size` is the token after the word "size" (str),
 - `description` is whatever text is left after removing those two phrases and stray punctuation,
-- If no price or size is found, it means no filter (None)
+- No price or size means no filter (None)
+
 **What moves through the session:** <!-- which fields, in what order -->
 1. `session["query"]`: the raw user text
 2. `session["parsed"]`: `description`, `size`, `max_price`
 3. `session["search_results"]`: the full list from `search_listings`
 4. `session["selected_item"]`: `search_results[0]`, set only when results are non-empty
-5. `session["outfit_suggestion"]`: the string from `suggest_outfit`
-6. `session["fit_card"]`: the caption string from `create_fit_card`
-7. `session["error"]`: set only when the run ends early
+5. `session["price_check"]`: the dict from `compare_prices` (`median`, `diff`, `verdict`, `n`), set right after an item is selected
+6. `session["outfit_suggestion"]`: the string from `suggest_outfit`
+7. `session["fit_card"]`: the caption string from `create_fit_card`
+8. `session["error"]`: set only when the run ends early
 
 ---
 
@@ -132,7 +140,7 @@ The user describes a thrift find in plain language, like "vintage graphic tee si
 **One full query**
 
 ```
-python app.py ask 'looking for a vintage graphic tee size M under $30'
+$ python app.py ask 'looking for a vintage graphic tee size M under $30'
 
   Found:    Y2K Baby Tee — Butterfly Print — $18.0 on depop
 
@@ -231,23 +239,46 @@ $ python -c "from tools import search_listings; print(search_listings('graphic t
 ```
 $ python -c "from tools import suggest_outfit; from utils.data_loader import get_example_wardrobe, load_listings; print(suggest_outfit(load_listings()[0], get_example_wardrobe()))"
 
-Outfit 1: Pair the new Vintage Levi's 501 Jeans with the white ribbed tank top and the black cropped zip hoodie layered on top, accessorized with the black crossbody bag and chunky white sneakers. This combination leans heavily into the streetwear and vintage tags shared by the jeans, creating an effortlessly cool silhouette by contrasting the fitted tank with the cropped hoodie. It is an ideal look for a casual weekend brunch, running errands, or meeting friends for coffee.
+  Outfit 1: Pair the new Vintage Levi's 501 Jeans with the white ribbed tank top and the black cropped zip hoodie layered on top, accessorized with the black crossbody bag and chunky white sneakers. This combination leans heavily into the streetwear and vintage tags shared by the jeans, creating an effortlessly cool silhouette by contrasting the fitted tank with the cropped hoodie. It is an ideal look for a casual weekend brunch, running errands, or meeting friends for coffee.
 
-Outfit 2: Combine the new Vintage Levi's 501 Jeans with the oversized grey crewneck sweatshirt and the black combat boots, finished with the brown leather belt. The classic denim and the cozy, oversized grey crewneck share a timeless, streetwear-inspired aesthetic that looks effortlessly put-together while remaining incredibly comfortable. This outfit is perfect for casual Fridays at a creative workplace, a trip to the local record store, or an autumn afternoon walk.
+  Outfit 2: Combine the new Vintage Levi's 501 Jeans with the oversized grey crewneck sweatshirt and the black combat boots, finished with the brown leather belt. The classic denim and the cozy, oversized grey crewneck share a timeless, streetwear-inspired aesthetic that looks effortlessly put-together while remaining incredibly comfortable. This outfit is perfect for casual Fridays at a creative workplace, a trip to the local record store, or an autumn afternoon walk.
 
 ```
 
 ```
 $ python -c "from tools import create_fit_card; from utils.data_loader import load_listings; print(create_fit_card('jeans and white sneakers', load_listings()[0]))"
-Score on Depop! I just snagged these vintage Levi's 501 jeans for only $38.00 and they fit like a dream. Throwing them on with some fresh white sneakers for that ultimate effortless streetwear vibe. #vintage #classic #denim #streetwear
+
+  Score on Depop! I just snagged these vintage Levi's 501 jeans for only $38.00 and they fit like a dream. Throwing them on with some fresh white sneakers for that ultimate effortless streetwear vibe. #vintage #classic #denim #streetwear
+
 ```
 
+```
+$ python app.py ask "designer ballgown size XXS under $5"
+
+  Nothing matched "designer ballgown" in size XXS under $5.0. Try removing the size filter or raising your budget or using different keywords.
+
+```
 ---
 
 ## Stretch Feature: Price Comparison Tool
 
-I'm adding a fourth tool, `compare_prices`, that checks whether the selected item is priced above or below similar listings. It runs in `agent.py::run_agent` after an item is selected and before `suggest_outfit`. Its result is stored in `session["price_check"]`, and the fit card mentions the price only when the verdict is "below typical". I'll test it by computing one category's median by hand and matching the tool's output to it.
+I'm adding a fourth tool `compare_prices` that checks whether the selected item is priced above or below similar listings. It runs in `agent.py::run_agent` after an item is selected and before `suggest_outfit`. Its result is stored in `session["price_check"]`, and the fit card mentions how the price compares to typical, worded to match the verdict.
 
+### Sample Run
+```
+$ python app.py ask 'looking for a vintage graphic tee size M under $30'
+
+  Found:    Y2K Baby Tee — Butterfly Print — $18.0 on depop
+
+  Outfit:   Outfit 1: Pair the new Y2K Baby Tee with the baggy straight-leg dark wash jeans and the chunky white sneakers for a quintessential 2000s streetwear look. The fitted silhouette of the graphic baby tee balances the oversized denim, while the white sneakers tie in the crisp tones of the butterfly print. This nostalgic combination is perfect for a casual weekend hangout or running errands in the city.
+
+  Outfit 2: Layer the vintage black denim jacket over the Y2K Baby Tee, paired with the wide-leg khaki trousers and black combat boots for an edgy, mixed-aesthetic ensemble. The black outerwear and boots adda grunge contrast to the sweet cottagecore and vintage vibes of the pink and purple butterfly graphic.This outfit is ideal for a casual day at a record store, a weekend concert, or grabbing coffee with friends.
+
+  Fit card: Scored this adorable butterfly Y2K baby tee on depop for $18, which is about what these usually go for. I can't wait to style it with some baggy dark wash jeans and chunky white sneakers for the ultimate 2000s weekend look. 
+
+  #y2k #vintagestyle #graphictee
+
+```
 ---
 
 ## How I Used AI
