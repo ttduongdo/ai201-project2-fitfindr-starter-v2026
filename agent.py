@@ -19,6 +19,7 @@ from tools import search_listings, suggest_outfit, create_fit_card, compare_pric
 from utils.data_loader import load_listings
 from generate import ModelUnavailable
 import re
+from mcp_client import call_tool
 
 # ── session state ─────────────────────────────────────────────────────────────
 
@@ -151,9 +152,18 @@ def run_agent(query: str, wardrobe: dict) -> dict:
     session["parsed"] = parse_query(query)
     p = session["parsed"]
 
+    listings = load_listings()
+    if not listings:
+        session["error"] = "No listings are available right now."
+        return session
+    
     count += 1
     trace.check_iterations(count)
-    session["search_results"] = search_listings(p["description"], p["size"], p["max_price"])
+    session["search_results"] = call_tool("search_listings", {
+        "description": p["description"],
+        "size": p["size"],
+        "max_price": p["max_price"],
+    })
 
     if not session["search_results"]:
         session["error"] = _no_results_message(session["parsed"])
@@ -163,7 +173,7 @@ def run_agent(query: str, wardrobe: dict) -> dict:
 
     count += 1
     trace.check_iterations(count)
-    session["price_check"] = compare_prices(session["selected_item"], load_listings())
+    session["price_check"] = compare_prices(session["selected_item"], listings)
 
     count += 1
     trace.check_iterations(count)

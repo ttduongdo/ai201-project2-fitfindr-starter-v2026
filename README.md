@@ -102,6 +102,9 @@ The user describes a thrift find in plain language, like "vintage graphic tee si
      function have to be real. -->
 
 **Branch rule:** 
+- If the catalog is empty (`load_listings() = None`): 
+     - Set `session["error"]` to "No listings are available right now." and return the session.
+     - No tool is called.
 - If `search_listings` returns `[]`: 
      - Set `session["error"]` to a message that says what to change (raise the price cap/drop the size/use fewer descriptive words) and return the session. 
      - `compare_prices`, `suggest_outfit` and `create_fit_card` are never called/
