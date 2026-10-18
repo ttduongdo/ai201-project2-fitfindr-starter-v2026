@@ -388,13 +388,52 @@ that produced it:
 **Happy path**
 
 ```
+$ python app.py ask 'looking for a vintage graphic tee size M under $30' --trace
+[1] parse_query
+      in:  looking for a vintage graphic tee size M under $30
+      out: dict with keys: description, size, max_price
+[2] search_listings (via MCP)
+      in:  dict with keys: description, size, max_price
+      out: 8 items: Y2K Baby Tee — Butterfly Print, Mesh Long-Sleeve Top — Black, 90s Silk Slip Dress — Floral, Midi Length … +5 more
+[3] select
+      out: Y2K Baby Tee — Butterfly Print ($18.0, depop)
+      →    took search_results[0]
+[4] compare_prices
+      in:  Y2K Baby Tee — Butterfly Print ($18.0, depop)
+      out: dict with keys: median, diff, verdict, n
+      →    verdict: typical, median: 21.5, n: 14
+[5] suggest_outfit
+      in:  dict with keys: item, wardrobe_items
+      out: Outfit 1: Pair the new Y2K Baby Tee with the baggy straight-leg dark wash jeans and chunky white sneakers. Thi…
+[6] create_fit_card
+      in:  dict with keys: price_note
+      out: Managed to snag this adorable Y2K butterfly baby tee on Depop for $18, which is pretty typical for these. Can'…
 
+  Found:    Y2K Baby Tee — Butterfly Print — $18.0 on depop
+
+  Outfit:   Outfit 1: Pair the new Y2K Baby Tee with the baggy straight-leg dark wash jeans and chunky white sneakers. This combination nails the nostalgic Y2K streetwear aesthetic by balancing the fitted butterfly top with relaxed denim, tied together with the black crossbody bag. It is a trendy yet effortless look ideal for casual weekend hangouts or running errands.
+
+  Outfit 2: Layer the vintage black denim jacket over the Y2K Baby Tee, paired with the wide-leg khaki trousers and chunky white sneakers. The earth tones of the trousers complement the pink and purple hues of the butterfly print, while the black denim adds a cool, vintage edge. This stylish ensemble is perfect for a casual daytime date or meeting friends at a coffee shop.
+
+  Fit card: Managed to snag this adorable Y2K butterfly baby tee on Depop for $18, which is pretty typical for these. Can't wait to style it with some baggy dark wash jeans, chunky white sneakers, and a crossbody bag for the ultimate effortless weekend look. 
+
+  #y2k #vintage #graphictee
 ```
 
 **Empty search**
 
 ```
+$ python app.py ask 'designer ballgown size XXS under $5' --trace
+[1] parse_query
+      in:  designer ballgown size XXS under $5
+      out: dict with keys: description, size, max_price
+[2] search_listings (via MCP)
+      in:  dict with keys: description, size, max_price
+      out: [] (empty)
+[3] branch
+      →    no results, stopping before compare_prices / suggest_outfit / create_fit_card
 
+  Nothing matched "designer ballgown" in size XXS under $5.0. Try removing the size filter or raising your budget or using different keywords.
 ```
 
 **On the MCP move:** <!-- what changed in your code, and whether anything

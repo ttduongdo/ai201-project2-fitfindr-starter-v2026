@@ -20,6 +20,8 @@ from utils.data_loader import load_listings
 from generate import ModelUnavailable
 import re
 from mcp_client import call_tool
+# from trace import step, start_trace, get_trace
+
 
 # ── session state ─────────────────────────────────────────────────────────────
 
@@ -146,15 +148,18 @@ def run_agent(query: str, wardrobe: dict) -> dict:
     """
     session = new_session(query, wardrobe)
     count = 0
+    trace.start_trace()
 
     count += 1
     trace.check_iterations(count)
     session["parsed"] = parse_query(query)
     p = session["parsed"]
+    trace.step("parse_query", inputs=query, returned=p)
 
     listings = load_listings()
     if not listings:
         session["error"] = "No listings are available right now."
+        trace.step("load_listings", returned=listings, note="branch: empty catalog, stopping")
         return session
     
     count += 1
@@ -164,20 +169,22 @@ def run_agent(query: str, wardrobe: dict) -> dict:
         "size": p["size"],
         "max_price": p["max_price"],
     })
+    trace.step("search_listings (via MCP)", inputs=p, returned=session["search_results"])
 
     if not session["search_results"]:
         session["error"] = _no_results_message(session["parsed"])
+        trace.step("branch", note="no results, stopping before compare_prices / suggest_outfit / create_fit_card")
         return session
 
     session["selected_item"] = session["search_results"][0]
+    trace.step("select", returned=session["selected_item"], note="took search_results[0]")
 
     count += 1
     trace.check_iterations(count)
     session["price_check"] = compare_prices(session["selected_item"], listings)
-
-    count += 1
-    trace.check_iterations(count)
-    session["outfit_suggestion"] = suggest_outfit(session["selected_item"], wardrobe)
+    check = session["price_check"]
+    trace.step("compare_prices", inputs=session["selected_item"],
+         returned=check, note=f"verdict: {check['verdict']}, median: {check['median']}, n: {check['n']}")
  
     check = session["price_check"]
     price_note = None
@@ -190,9 +197,23 @@ def run_agent(query: str, wardrobe: dict) -> dict:
     else:
         price_note = None
 
-    count += 1
-    trace.check_iterations(count)
-    session["fit_card"] = create_fit_card(session["outfit_suggestion"], session["selected_item"], price_note)
+    try: 
+        count += 1
+        trace.check_iterations(count)
+        session["outfit_suggestion"] = suggest_outfit(session["selected_item"], wardrobe)
+        trace.step("suggest_outfit", inputs={"item": session["selected_item"], "wardrobe_items": len(wardrobe)},
+             returned=session["outfit_suggestion"])
+
+        count += 1
+        trace.check_iterations(count)
+        session["fit_card"] = create_fit_card(session["outfit_suggestion"], session["selected_item"], price_note)
+        trace.step("create_fit_card", inputs={"price_note": price_note}, returned=session["fit_card"])
+    except ModelUnavailable:
+        session["error"] = ("The AI model couldn't be reached. Check your API key in .env "
+                            "and your connection, then try again.")
+        trace.step("model call", note="ModelUnavailable, stopping")
+        return session
+    
     return session
 
 
