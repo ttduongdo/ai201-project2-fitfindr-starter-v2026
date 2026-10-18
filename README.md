@@ -469,7 +469,8 @@ $ python app.py ask 'designer ballgown size XXS under $5' --trace
   Nothing matched "designer ballgown" in size XXS under $5.0. Try removing the size filter or raising your budget or using different keywords.
 ```
 
-**On the MCP move:** <!-- what changed in your code, and whether anything
+**On the MCP move:** I moved `search_listings` onto an MCP server and changed `run_agent` to call it through `mcp_client.call_tool`. It returned the same top item and kept the no-results exit.
+<!-- what changed in your code, and whether anything
 behaved differently afterwards. If the rewire didn't work, say exactly where it
 broke — the error text and the last thing that worked. That earns the point in
 full. -->
@@ -512,9 +513,17 @@ full. -->
 
 ## What's Still Broken
 
+**Criteria check form, not quality.** Some captions in the runs are generic ("perfect weekend fit"), and a few drop the platform or reword the price. It probably needs a human or a second model to judge, and I only had time to build word count check.
+
+**The `compare_prices` price note is weakest for accessories.** The dataset has only 3 accessories, so the typical price falls back to all other listings, and the note can be misleading for that category.
+
+**The agent always takes `search_results[0]`.** There's no ranking beyond the order `search_listings` returns, and the keyword match is loose. For "tee under $20", the results included a mesh long-sleeve top next to the tees. I'd add ranking, or ask the user which result they want.
+
 <!-- For each criterion still missed: what you'd do, and why you stopped where
      you did. "I ran out of time" is fine if it's true. Pretending nothing is
      left is not. -->
+
+
 
 
 
