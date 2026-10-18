@@ -169,7 +169,8 @@ def run_agent(query: str, wardrobe: dict) -> dict:
         "size": p["size"],
         "max_price": p["max_price"],
     })
-    trace.step("search_listings (via MCP)", inputs=p, returned=session["search_results"])
+    trace.step("search_listings (via MCP)", inputs=p, returned=session["search_results"],
+               note=f"cap: {p['max_price']}, prices: {[r['price'] for r in session['search_results']]}")
 
     if not session["search_results"]:
         session["error"] = _no_results_message(session["parsed"])
@@ -177,7 +178,7 @@ def run_agent(query: str, wardrobe: dict) -> dict:
         return session
 
     session["selected_item"] = session["search_results"][0]
-    trace.step("select", returned=session["selected_item"], note="took search_results[0]")
+    trace.step("select", returned=session["selected_item"], note=f"took item id {session['search_results'][0]['id']}")
 
     count += 1
     trace.check_iterations(count)
@@ -202,12 +203,14 @@ def run_agent(query: str, wardrobe: dict) -> dict:
         trace.check_iterations(count)
         session["outfit_suggestion"] = suggest_outfit(session["selected_item"], wardrobe)
         trace.step("suggest_outfit", inputs={"item": session["selected_item"], "wardrobe_items": len(wardrobe)},
-             returned=session["outfit_suggestion"])
+             returned=session["outfit_suggestion"],
+             note=f"received item id {session['selected_item']['id']}")
 
         count += 1
         trace.check_iterations(count)
         session["fit_card"] = create_fit_card(session["outfit_suggestion"], session["selected_item"], price_note)
-        trace.step("create_fit_card", inputs={"price_note": price_note}, returned=session["fit_card"])
+        trace.step("create_fit_card", inputs={"price_note": price_note}, returned=session["fit_card"],
+                   note=f"received item id {session['selected_item']['id']}")
     except ModelUnavailable:
         session["error"] = ("The AI model couldn't be reached. Check your API key in .env "
                             "and your connection, then try again.")
