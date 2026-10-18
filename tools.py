@@ -236,7 +236,7 @@ def create_fit_card(outfit: str, new_item: dict, price_note: str = None) -> str:
         price_note: (optional) a note about the price, e.g., "below typical".
 
     Returns:
-        A two-to-four sentence caption.
+        A two-to-three sentence caption.
         If `outfit` is empty or whitespace, return a descriptive message rather
         than raising.
 
@@ -281,7 +281,7 @@ def create_fit_card(outfit: str, new_item: dict, price_note: str = None) -> str:
     Outfit idea:
     {outfit}
 
-    Write a two-to-four sentence caption you'd actually post about this find.
+    Write a two-to-three sentence caption you'd actually post about this find.
     - Mention the item, its price, and the platform once each.
     - Sound like a real person's post, not a product description.
     - Be specific about the vibe, using details from the outfit idea.
@@ -289,6 +289,7 @@ def create_fit_card(outfit: str, new_item: dict, price_note: str = None) -> str:
     - If price context is given, fold it into your one mention of the price and keep it accurate: call it a deal or a steal only if it says below typical, say it was worth the splurge if it says above typical, and keep it casual if it says about typical. Do not add any other price claims.
     - End with 2-4 hashtags based on the style tags.
     - Plain text only. No intro like "Here's a caption", and no quotation marks around it.
+    - The whole caption, hashtags included, must be under 280 characters.
     """
 
     reply = generate(prompt)

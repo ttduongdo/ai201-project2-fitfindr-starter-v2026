@@ -326,17 +326,45 @@ $ python app.py ask 'looking for a vintage graphic tee size M under $30'
 
 | Criterion | Target | Try 1 | Try 2 | Try 3 | Try 4 | Try 5 | Verdict |
 |---|---|---|---|---|---|---|---|
-| 1.  |  |  |  |  |  |  |  |
-| 2.  |  |  |  |  |  |  |  |
-| 3.  |  |  |  |  |  |  |  |
-| 4.  |  |  |  |  |  |  |  |
-| 5.  |  |  |  |  |  |  |  |
+| 1. Matching query completes | 4/5 | PASS | PASS | PASS | PASS | PASS | MET (5/5) |
+| 2. Impossible query stops early | 5/5 | PASS | PASS | PASS | PASS | PASS | MET (5/5) |
+| empty wardrobe _(diagnostic — not one of your five)_ | n/a | PASS | PASS | PASS | PASS | PASS | 5/5 |
+| 3. Selected item is carried through | 5/5 | PASS | PASS | PASS | PASS | PASS | MET (5/5) |
+| 4. Fit card is postable | ≥4/5 | FAIL (312) | FAIL (362) | FAIL (378) | FAIL (355) | PASS (273) | MISSED (1/5) |
+| 5. Price cap is respected | 5/5 | PASS | PASS | PASS | PASS | PASS | MET (5/5) |
 
 **Real output from one try**, pasted as text, naming the file and function
 that produced it:
 
 ```
+$ python run_eval.py --label before
+Cache is OFF for this run — that's deliberate.
 
+matching query completes  (example wardrobe)
+  query: vintage graphic tee under $30
+[1] parse_query
+      in:  vintage graphic tee under $30
+      out: dict with keys: description, size, max_price
+[2] search_listings (via MCP)
+      in:  dict with keys: description, size, max_price
+      out: 10 items: Y2K Baby Tee — Butterfly Print, Graphic Tee — 2003 Tour Bootleg Style, Vintage Band Tee — Faded Grey … +7 more
+      →    cap: 30.0, prices: [18.0, 24.0, 19.0, 26.0, 15.0, 22.0, 27.0, 20.0, 30.0, 12.0]
+[3] select
+      out: Y2K Baby Tee — Butterfly Print ($18.0, depop)
+      →    took item id lst_002
+[4] compare_prices
+      in:  Y2K Baby Tee — Butterfly Print ($18.0, depop)
+      out: dict with keys: median, diff, verdict, n
+      →    verdict: typical, median: 21.5, n: 14
+[5] suggest_outfit
+      in:  dict with keys: item, wardrobe_items
+      out: Outfit 1: Pair the new Y2K baby tee with the baggy dark wash jeans and chunky white sneakers, adding the black…
+      →    received item id lst_002
+[6] create_fit_card
+      in:  dict with keys: price_note
+      out: scored this butterfly y2k baby tee on depop for $18, which is about typical for these. I'm obsessed with pairi…
+      →    received item id lst_002
+  try 1: completed — fit card 298 chars
 ```
 
 ---
@@ -361,14 +389,19 @@ that produced it:
 
 | # | Criterion | Target | Verdict | How I decided |
 |---|---|---|---|---|
-| 1 |  |  |  |  |
-| 2 |  |  |  |  |
-| 3 |  |  |  |  |
-| 4 |  |  |  |  |
-| 5 |  |  |  |  |
+| 1 | Matching query completes | 4/5 | MET (5/5) | "vintage graphic tee under $30" never stopped early |
+| 2 | Impossible query stops early | 5/5 | MET (5/5) | "designer ballgown size XXS under $5" stopped at the no-results branch on all 5 tries |
+| 3 | Selected item is carried through | 5/5 | MET (5/5) | On all 5 tries the trace shows `took item id lst_002` at select, then `received item id lst_002` at both `suggest_outfit` and `create_fit_card`|
+| 4 | Fit card is postable | 4/5 | MISSED (1/5) | All 5 cards passed the price and hashtag checks BUT lengths were 312, 362, 378, 355 and 273, so only Try 5 passed |
+| 5 | Price cap is respected | 5/5 | MET (5/5) | "tee under $20" showed `cap: 20.0, prices: [18.0, 15.0, 19.0]` on all 5 tries |
+
 
 **Diagnoses**
 
+**Criterion 4**
+`create_fit_card` tool worked but its prompt never said the caption had to stay within 280 characters. The model followed the instructions of 3-4 sentences with a price clause and hashtags which comes out around 300–380 characters.
+
+-> Fix the prompt: ask for 2-3 short sentences and state that the whole caption, hashtags included, must be 280 characters or fewer. If the model still goes over, add a retry-once guard.
 
 
 ---
@@ -452,21 +485,23 @@ full. -->
 
      `python run_eval.py --label after` -->
 
-**What I changed:**
+**What I changed:** `create_fit_card` prompt in `tools.py`. I replaced the "two-to-four sentences" instruction to "two to three short sentences" and added a rule that the whole caption, hashtags included, must be 280 characters or fewer.
 
-**Which failure it was meant to fix:**
+
+**Which failure it was meant to fix:** All 5 cards had the price and 3 trailing hashtags, but 4 were over 280 characters (312, 362, 378 and 355). 
 
 ### Run Log — After
 
 | Criterion | Target | Try 1 | Try 2 | Try 3 | Try 4 | Try 5 | Verdict |
 |---|---|---|---|---|---|---|---|
-| 1.  |  |  |  |  |  |  |  |
-| 2.  |  |  |  |  |  |  |  |
-| 3.  |  |  |  |  |  |  |  |
-| 4.  |  |  |  |  |  |  |  |
-| 5.  |  |  |  |  |  |  |  |
+| 1. matching query completes | 4/5 | PASS | PASS | PASS | PASS | PASS | MET (5/5) |
+| 2. impossible query stops early | 5/5 | PASS | PASS | PASS | PASS | PASS | MET (5/5) |
+| empty wardrobe _(diagnostic — not one of your five)_ | n/a | PASS | PASS | PASS | PASS | PASS | 5/5 |
+| 3. selected item is carried through | 5/5 | PASS | PASS | PASS | PASS | PASS | MET (5/5) |
+| 4. fit card is postable | ≥4/5 | PASS (264) | PASS (276) | PASS (278) | PASS (245) | PASS (260) | MET (5/5) |
+| 5. price cap is respected | 5/5 | PASS | PASS | PASS | PASS | PASS | MET (5/5) |
 
-**Did it help, and how do I know:**
+**Did it help, and how do I know:** Yes. Criterion 4 went from MISSED (1/5) to MET (5/5), and the other four criteria stayed at their before-run results, so the change didn't break anything.
 
 <!-- If it made things worse, say that. Honestly reported, that earns full
      credit and is more interesting than one that worked. -->
